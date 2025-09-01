@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>EPUB.js viewer</title>
+    <title>EPUB.js 阅读器</title>
 
     <script
       src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"
@@ -17,41 +17,147 @@
     ></script>
 
     <style>
+      :root {
+        --primary-color: #4a6fa5;
+        --secondary-color: #6e9cd2;
+        --background-color: #f5f7fa;
+        --text-color: #333;
+        --light-gray: #e2e2e2;
+        --medium-gray: #777;
+        --dark-gray: #444;
+        --sidebar-width: 300px;
+        --header-height: 50px;
+        --control-height: 50px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
       body {
         margin: 0;
-        background: #fafafa;
-        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-        color: #333;
-
-        position: absolute;
-        height: 100%;
-        width: 100%;
-      }
-
-      #title {
-        width: 900px;
-        min-height: 18px;
-        margin: 10px auto;
-        text-align: center;
-        font-size: 16px;
-        color: #e2e2e2;
-        font-weight: 400;
-      }
-
-      #title:hover {
-        color: #777;
-      }
-
-      #viewer.spreads {
-        width: 900px;
-        height: 600px;
-        box-shadow: 0 0 4px #ccc;
-        border-radius: 5px;
         padding: 0;
+        background: var(--background-color);
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        color: var(--text-color);
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      /* 顶部标题栏 */
+      .header {
+        height: var(--header-height);
+        background: var(--primary-color);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 20px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        z-index: 100;
+        flex-shrink: 0;
+      }
+
+      .header h1 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 60%;
+      }
+
+      /* 主内容区 */
+      .main-container {
+        display: flex;
+        flex: 1;
+        overflow: hidden;
         position: relative;
-        margin: 7% auto;
-        background: white center center no-repeat;
-        top: calc(50vh - 400px);
+      }
+
+      /* 目录侧边栏 */
+      #sidebar {
+        width: var(--sidebar-width);
+        background: white;
+        box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+        overflow-y: auto;
+        z-index: 10;
+        transition: transform 0.3s ease;
+        flex-shrink: 0;
+      }
+
+      #sidebar.hidden {
+        transform: translateX(calc(-1 * var(--sidebar-width)));
+      }
+
+      .sidebar-header {
+        padding: 15px;
+        border-bottom: 1px solid var(--light-gray);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .sidebar-header h2 {
+        margin: 0;
+        font-size: 16px;
+        color: var(--dark-gray);
+      }
+
+      #close-sidebar {
+        background: none;
+        border: none;
+        font-size: 20px;
+        cursor: pointer;
+        color: var(--medium-gray);
+      }
+
+      #toc {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+
+      #toc li {
+        padding: 10px 15px;
+        border-bottom: 1px solid var(--light-gray);
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+
+      #toc li:hover {
+        background: #f0f5ff;
+      }
+
+      #toc li.active {
+        background: #e6f0ff;
+        color: var(--primary-color);
+        font-weight: 500;
+      }
+
+      /* 阅读器区域 */
+      .reader-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        overflow: hidden;
+        position: relative;
+      }
+
+      #viewer {
+        width: 100%;
+        max-width: 900px;
+        height: 100%;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        border-radius: 5px;
+        background: white;
+        overflow: hidden;
       }
 
       #viewer.spreads .epub-view > iframe {
@@ -59,401 +165,410 @@
       }
 
       #viewer.scrolled {
-        overflow: hidden;
-        width: 800px;
-        margin: 0 auto;
-        position: relative;
-        background: center center no-repeat white;
-        box-shadow: 0 0 4px #ccc;
-        padding: 20px;
+        overflow: auto;
       }
 
-      #viewer.scrolled .epub-view > iframe {
+      /* 控制栏 */
+      .controls {
+        height: var(--control-height);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 20px;
+        gap: 20px;
+        flex-shrink: 0;
         background: white;
+        box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
       }
 
-      #prev {
-        left: 0;
+      .control-btn {
+        background: var(--primary-color);
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 8px 16px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: background 0.2s;
       }
 
-      #next {
-        right: 0;
+      .control-btn:hover {
+        background: var(--secondary-color);
       }
 
-      @media (min-width: 1000px) {
-        #viewer.spreads:after {
-          position: absolute;
-          width: 1px;
-          border-right: 1px #000 solid;
-          height: 90%;
-          z-index: 1;
-          left: 50%;
-          margin-left: -1px;
-          top: 5%;
-          opacity: 0.15;
-          box-shadow: -2px 0 15px rgba(0, 0, 0, 1);
-          content: "";
-        }
+      #toggle-sidebar {
+        position: absolute;
+        left: 20px;
+        top: 50%;
+        transform: translateY(-50%);
+      }
 
-        #viewer.spreads.single:after {
-          display: none;
-        }
-
-        #prev {
-          left: 40px;
-        }
-
-        #next {
-          right: 40px;
-        }
+      .page-nav {
+        display: flex;
+        align-items: center;
+        gap: 10px;
       }
 
       .arrow {
-        position: fixed;
-        top: 50%;
-        margin-top: -32px;
-        font-size: 64px;
-        color: #e2e2e2;
-        font-family: arial, sans-serif;
-        font-weight: bold;
+        font-size: 24px;
+        color: var(--primary-color);
         cursor: pointer;
-        -webkit-user-select: none;
-        -moz-user-select: none;
         user-select: none;
-        text-decoration: none;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: background 0.2s;
       }
 
-      .navlink {
-        margin: 14px;
-        display: block;
-        text-align: center;
-        text-decoration: none;
-        color: #ccc;
+      .arrow:hover {
+        background: #f0f0f0;
       }
 
-      .arrow:hover,
-      .navlink:hover {
-        color: #777;
-      }
-
-      .arrow:active,
-      .navlink:hover {
-        color: #000;
-      }
-
-      #book-wrapper {
-        width: 480px;
-        height: 640px;
-        overflow: hidden;
-        border: 1px solid #ccc;
-        margin: 28px auto;
-        background: #fff;
-        border-radius: 0 5px 5px 0;
-        position: absolute;
-      }
-
-      #book-viewer {
-        width: 480px;
-        height: 660px;
-        margin: -30px auto;
-        -moz-box-shadow: inset 10px 0 20px rgba(0, 0, 0, 0.1);
-        -webkit-box-shadow: inset 10px 0 20px rgba(0, 0, 0, 0.1);
-        box-shadow: inset 10px 0 20px rgba(0, 0, 0, 0.1);
-      }
-
-      #book-viewer iframe {
-        padding: 40px;
-      }
-
-      #controls {
-        position: absolute;
-        bottom: 16px;
-        left: 50%;
-        width: 400px;
-        margin-left: -200px;
-        text-align: center;
-        display: none;
-      }
-
-      #controls > input[type="range"] {
-        width: 400px;
-      }
-
-      #navigation {
-        width: 400px;
-        height: 100vh;
-        position: absolute;
-        overflow: auto;
-        top: 0;
-        left: 0;
-        background: #777;
-        -webkit-transition: -webkit-transform 0.25s ease-out;
-        -moz-transition: -moz-transform 0.25s ease-out;
-        -ms-transition: -moz-transform 0.25s ease-out;
-        transition: transform 0.25s ease-out;
-      }
-
-      #navigation.fixed {
-        position: fixed;
-      }
-
-      #navigation h1 {
-        width: 200px;
-        font-size: 16px;
-        font-weight: normal;
-        color: #fff;
-        margin-bottom: 10px;
-      }
-
-      #navigation h2 {
+      .page-info {
         font-size: 14px;
-        font-weight: normal;
-        color: #b0b0b0;
-        margin-bottom: 20px;
+        color: var(--medium-gray);
       }
 
-      #navigation ul {
-        padding-left: 36px;
-        margin-left: 0;
-        margin-top: 12px;
-        margin-bottom: 12px;
-        width: 340px;
+      /* 响应式设计 */
+      @media (max-width: 768px) {
+        :root {
+          --sidebar-width: 250px;
+        }
+
+        .header h1 {
+          font-size: 16px;
+          max-width: 50%;
+        }
+
+        .reader-container {
+          padding: 10px;
+        }
+
+        .controls {
+            padding: 0 10px;
+        }
+        
+        .control-btn {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+        
+        .arrow {
+            font-size: 20px;
+            width: 36px;
+            height: 36px;
+        }
       }
 
-      #navigation ul li {
-        list-style: decimal;
-        margin-bottom: 10px;
-        color: #cccddd;
-        font-size: 12px;
-        padding-left: 0;
-        margin-left: 0;
+      @media (max-width: 480px) {
+        .header {
+          padding: 0 10px;
+        }
+        
+        .header h1 {
+          font-size: 14px;
+          max-width: 40%;
+        }
+        
+        .control-btn span {
+          display: none;
+        }
+        
+        .control-btn {
+          padding: 8px;
+        }
+        
+        .control-btn::before {
+          content: attr(data-icon);
+        }
+        
+        #prev-page {
+          --data-icon: "‹";
+        }
+        
+        #next-page {
+          --data-icon: "›";
+        }
+        
+        .page-info {
+          font-size: 12px;
+        }
       }
 
-      #navigation ul li a {
-        color: #ccc;
-        text-decoration: none;
-      }
-
-      #navigation ul li a:hover {
-        color: #fff;
-        text-decoration: underline;
-      }
-
-      #navigation ul li a.active {
-        color: #fff;
-      }
-
-      #navigation #cover {
-        display: block;
-        margin: 24px auto;
-      }
-
-      #navigation #closer {
+      /* 加载指示器 */
+      .loader {
         position: absolute;
-        top: 0;
-        right: 0;
-        padding: 12px;
-        color: #cccddd;
-        width: 24px;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 40px;
+        height: 40px;
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid var(--primary-color);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        z-index: 1000;
       }
 
-      #navigation.closed {
-        -webkit-transform: translate(-400px, 0);
-        -moz-transform: translate(-400px, 0);
-        -ms-transform: translate(-400px, 0);
-        transform: translate(-400px, 0);
+      @keyframes spin {
+        0% { transform: translate(-50%, -50%) rotate(0deg); }
+        100% { transform: translate(-50%, -50%) rotate(360deg); }
       }
 
-      svg {
-        display: block;
-      }
-
-      .close-x {
-        stroke: #cccddd;
-        fill: transparent;
-        stroke-linecap: round;
-        stroke-width: 5;
-      }
-
-      .close-x:hover {
-        stroke: #fff;
-      }
-
-      #opener {
-        position: absolute;
-        top: 0;
-        left: 0;
-        padding: 10px;
-        stroke: #e2e2e2;
-        fill: #e2e2e2;
-      }
-
-      #opener:hover {
-        stroke: #777;
-        fill: #777;
+      /* 触摸设备优化 */
+      @media (hover: none) {
+        .arrow {
+          min-width: 50px;
+          min-height: 50px;
+        }
       }
     </style>
   </head>
   <body>
-    <div id="viewer" class="spreads"></div>
-    <a id="prev" href="#prev" class="arrow">‹</a>
-    <a id="next" href="#next" class="arrow">›</a>
+    <div class="header">
+      <h1 id="book-title">EPUB 阅读器</h1>
+      <button id="toggle-sidebar" class="control-btn">
+        <span>目录</span>
+      </button>
+    </div>
+
+    <div class="main-container">
+      <div id="sidebar">
+        <div class="sidebar-header">
+          <h2>目录</h2>
+          <button id="close-sidebar">×</button>
+        </div>
+        <ul id="toc"></ul>
+      </div>
+
+      <div class="reader-container">
+        <div id="viewer" class="spreads"></div>
+        <div class="loader" id="loader"></div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="prev-page" class="control-btn"><span>上一页</span></button>
+      <div class="page-nav">
+        <div id="prev" class="arrow">‹</div>
+        <div class="page-info">
+          <span id="current-page">0</span> / <span id="total-pages">0</span>
+        </div>
+        <div id="next" class="arrow">›</div>
+      </div>
+      <button id="next-page" class="control-btn"><span>下一页</span></button>
+    </div>
 
     <script>
-      var params =
-        URLSearchParams &&
-        new URLSearchParams(document.location.search.substring(1))
-      var url =
-        params && params.get("url") && decodeURIComponent(params.get("url"))
-      console.log(url)
-      var currentSectionIndex =
-        params && params.get("loc") ? params.get("loc") : undefined
-      let blob = fetch(url).then((res) => res.blob())
-      var book = ePub(
-        blob.then((blob) => blob.arrayBuffer()),
-        {
-          restore: true,
-          reload: true,
-          spreads: true,
-        }
-      )
-      var rendition = book.renderTo("viewer", {
-        width: "100%",
-        height: 600,
-        spread: "always",
-      })
+      // 解析URL参数
+      const params = new URLSearchParams(window.location.search);
+      const url = params.get("url") ? decodeURIComponent(params.get("url")) : null;
+      const currentSectionIndex = params.get("loc") || undefined;
+      
+      // 全局变量
+      let book, rendition;
+      let isSidebarOpen = false;
 
-      rendition.display(currentSectionIndex)
-
-      book.ready.then(function () {
-        var next = document.getElementById("next")
-
-        next.addEventListener(
-          "click",
-          function (e) {
-            book.package.metadata.direction === "rtl"
-              ? rendition.prev()
-              : rendition.next()
-            e.preventDefault()
-          },
-          false
-        )
-
-        var prev = document.getElementById("prev")
-        prev.addEventListener(
-          "click",
-          function (e) {
-            book.package.metadata.direction === "rtl"
-              ? rendition.next()
-              : rendition.prev()
-            e.preventDefault()
-          },
-          false
-        )
-
-        var keyListener = function (e) {
-          // Left Key
-          if ((e.keyCode || e.which) == 37) {
-            book.package.metadata.direction === "rtl"
-              ? rendition.next()
-              : rendition.prev()
-          }
-
-          // Right Key
-          if ((e.keyCode || e.which) == 39) {
-            book.package.metadata.direction === "rtl"
-              ? rendition.prev()
-              : rendition.next()
-          }
+      // 初始化函数
+      async function initReader() {
+        if (!url) {
+          alert("未指定EPUB文件URL");
+          return;
         }
 
-        rendition.on("keyup", keyListener)
-        document.addEventListener("keyup", keyListener, false)
-      })
-
-      var title = document.getElementById("title")
-
-      rendition.on("rendered", function (section) {
-        var current = book.navigation && book.navigation.get(section.href)
-
-        if (current) {
-          var $select = document.getElementById("toc")
-          var $selected = $select.querySelector("option[selected]")
-          if ($selected) {
-            $selected.removeAttribute("selected")
-          }
-
-          var $options = $select.querySelectorAll("option")
-          for (var i = 0; i < $options.length; ++i) {
-            let selected = $options[i].getAttribute("ref") === current.href
-            if (selected) {
-              $options[i].setAttribute("selected", "")
-            }
-          }
+        try {
+          document.getElementById('loader').style.display = 'block';
+          
+          // 获取并加载EPUB文件
+          const response = await fetch(url);
+          const blob = await response.blob();
+          const arrayBuffer = await blob.arrayBuffer();
+          
+          // 初始化电子书
+          book = ePub(arrayBuffer, {
+            restore: true,
+            reload: true,
+            spreads: true
+          });
+          
+          // 设置渲染
+          rendition = book.renderTo("viewer", {
+            width: "100%",
+            height: "100%",
+            spread: "always"
+          });
+          
+          // 显示初始章节
+          await rendition.display(currentSectionIndex);
+          
+          // 设置事件监听器
+          setupEventListeners();
+          
+          // 加载目录
+          await loadToc();
+          
+          // 更新书籍信息
+          updateBookInfo();
+          
+          document.getElementById('loader').style.display = 'none';
+        } catch (error) {
+          console.error("加载电子书时出错:", error);
+          document.getElementById('loader').style.display = 'none';
+          alert("加载电子书时出错: " + error.message);
         }
-      })
+      }
 
-      rendition.on("relocated", function (location) {
-        console.log(location)
+      // 设置事件监听器
+      function setupEventListeners() {
+        // 翻页按钮
+        document.getElementById("next").addEventListener("click", nextPage);
+        document.getElementById("prev").addEventListener("click", prevPage);
+        document.getElementById("next-page").addEventListener("click", nextPage);
+        document.getElementById("prev-page").addEventListener("click", prevPage);
+        
+        // 目录侧边栏
+        document.getElementById("toggle-sidebar").addEventListener("click", toggleSidebar);
+        document.getElementById("close-sidebar").addEventListener("click", toggleSidebar);
+        
+        // 键盘导航
+        document.addEventListener("keydown", handleKeydown);
+        
+        // 窗口大小调整
+        window.addEventListener("resize", handleResize);
+        
+        // 监听rendition事件
+        rendition.on("relocated", updatePageInfo);
+        rendition.on("rendered", updateCurrentChapter);
+      }
 
-        var next =
-          book.package.metadata.direction === "rtl"
-            ? document.getElementById("prev")
-            : document.getElementById("next")
-        var prev =
-          book.package.metadata.direction === "rtl"
-            ? document.getElementById("next")
-            : document.getElementById("prev")
-
-        if (location.atEnd) {
-          next.style.visibility = "hidden"
+      // 翻页功能
+      function nextPage() {
+        if (book.package.metadata.direction === "rtl") {
+          rendition.prev();
         } else {
-          next.style.visibility = "visible"
+          rendition.next();
         }
+      }
 
-        if (location.atStart) {
-          prev.style.visibility = "hidden"
+      function prevPage() {
+        if (book.package.metadata.direction === "rtl") {
+          rendition.next();
         } else {
-          prev.style.visibility = "visible"
+          rendition.prev();
         }
-      })
+      }
 
-      rendition.on("layout", function (layout) {
-        let viewer = document.getElementById("viewer")
+      // 键盘导航
+      function handleKeydown(e) {
+        // 左箭头键
+        if (e.keyCode === 37) {
+          prevPage();
+        }
+        // 右箭头键
+        else if (e.keyCode === 39) {
+          nextPage();
+        }
+        // ESC键关闭侧边栏
+        else if (e.keyCode === 27 && isSidebarOpen) {
+          toggleSidebar();
+        }
+      }
 
-        if (layout.spread) {
-          viewer.classList.remove("single")
+      // 窗口调整大小
+      function handleResize() {
+        if (rendition) {
+          rendition.resize();
+        }
+      }
+
+      // 更新页面信息
+      function updatePageInfo(location) {
+        document.getElementById("current-page").textContent = location.start.displayed.page;
+        document.getElementById("total-pages").textContent = location.start.displayed.total;
+        
+        // 更新导航按钮状态
+        document.getElementById("next").style.visibility = location.atEnd ? "hidden" : "visible";
+        document.getElementById("prev").style.visibility = location.atStart ? "hidden" : "visible";
+      }
+
+      // 加载目录
+      async function loadToc() {
+        try {
+          const navigation = await book.loaded.navigation;
+          const tocElement = document.getElementById("toc");
+          
+          tocElement.innerHTML = "";
+          
+          navigation.forEach(chapter => {
+            const li = document.createElement("li");
+            li.textContent = chapter.label;
+            li.addEventListener("click", () => {
+              rendition.display(chapter.href);
+              if (window.innerWidth < 768) {
+                toggleSidebar();
+              }
+            });
+            tocElement.appendChild(li);
+          });
+        } catch (error) {
+          console.error("加载目录时出错:", error);
+        }
+      }
+
+      // 更新当前章节高亮
+      function updateCurrentChapter(section) {
+        const tocItems = document.querySelectorAll("#toc li");
+        const currentHref = section ? section.href : "";
+        
+        tocItems.forEach(item => {
+          item.classList.remove("active");
+        });
+        
+        if (section && book.navigation) {
+          const currentChapter = book.navigation.get(section.href);
+          if (currentChapter) {
+            tocItems.forEach(item => {
+              if (item.textContent === currentChapter.label) {
+                item.classList.add("active");
+                // 滚动到当前章节
+                item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              }
+            });
+          }
+        }
+      }
+
+      // 更新书籍信息
+      function updateBookInfo() {
+        if (book.package.metadata.title) {
+          document.getElementById("book-title").textContent = book.package.metadata.title;
+        }
+      }
+
+      // 切换目录侧边栏
+      function toggleSidebar() {
+        const sidebar = document.getElementById("sidebar");
+        isSidebarOpen = !isSidebarOpen;
+        
+        if (isSidebarOpen) {
+          sidebar.classList.remove("hidden");
         } else {
-          viewer.classList.add("single")
+          sidebar.classList.add("hidden");
         }
-      })
+      }
 
-      window.addEventListener("unload", function () {
-        console.log("unloading")
-        this.book.destroy()
-      })
+      // 初始化阅读器
+      document.addEventListener("DOMContentLoaded", initReader);
 
-      book.loaded.navigation.then(function (toc) {
-        var $select = document.getElementById("toc"),
-          docfrag = document.createDocumentFragment()
-
-        toc.forEach(function (chapter) {
-          var option = document.createElement("option")
-          option.textContent = chapter.label
-          option.setAttribute("ref", chapter.href)
-
-          docfrag.appendChild(option)
-        })
-
-        $select.appendChild(docfrag)
-
-        $select.onchange = function () {
-          var index = $select.selectedIndex,
-            url = $select.options[index].getAttribute("ref")
-          rendition.display(url)
-          return false
+      // 清理资源
+      window.addEventListener("beforeunload", () => {
+        if (book) {
+          book.destroy();
         }
-      })
+      });
     </script>
   </body>
 </html>
